@@ -1,0 +1,40 @@
+{# handlers.py.jinja #}
+from fastapi import APIRouter, Depends, HTTPException
+from typing import List
+
+# Import Pydantic schemas and query function
+from .schemas import {% for model in models.keys() %}{{ model }}Schema{% if not loop.last %}, {% endif %}{% endfor %}
+from .query_processor import query_with_include, MODEL_REGISTRY
+from .models import {{ models.keys()|join(', ') }}
+from .database import get_session
+
+router = APIRouter()
+
+# handlers code
+{%- for model_name in models.keys() %}
+@router.post(
+    "/{{ model_name.lower() }}/query",
+    response_model=List[{{ model_name }}Schema],
+    summary="Query {{ model_name }} with nested includes and field filters",
+    response_model_exclude_unset=True,
+)
+async def query_{{ model_name.lower() }}(
+    body: QueryRequest,
+    session=Depends(get_session),
+) -> List[{{ model_name }}Schema]:
+    model = MODEL_REGISTRY.get("{{ model_name }}")
+    results = query_with_include(
+        session,
+        model,
+        filters=body.filters,
+        fields=body.fields,
+        include_spec=body.include,
+    )
+    if not results:
+        raise HTTPException(status_code=404, detail="No {{ model_name }} found")
+    return results
+
+{% if not loop.last %}
+
+{% endif %}
+{%- endfor %}

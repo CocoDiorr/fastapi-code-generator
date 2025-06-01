@@ -1,0 +1,39 @@
+{# schemas.py.jinja #}
+from typing import Optional, List, Any, ForwardRef
+from pydantic import BaseModel, ConfigDict
+
+# First declare all models to handle forward refs
+{%- for model_name, model_spec in models.items() %}
+class {{ model_name }}Schema(BaseModel):
+    """Pydantic schema for {{ model_name }}"""
+    model_config = ConfigDict(from_attributes=True, exclude_defaults=True)
+
+    {%- for field in model_spec.fields %}
+    {# determine Python type #}
+    {%- if field.type == 'Integer' %}
+    {%- set py_type = 'int' %}
+    {%- elif field.type == 'Float' %}
+    {%- set py_type = 'float' %}
+    {%- elif field.type == 'String' %}
+    {%- set py_type = 'str' %}
+    {%- elif field.type == 'JSON' %}
+    {%- set py_type = 'dict' %}
+    {%- else %}
+    {%- set py_type = 'Any' %}
+    {%- endif %}
+    {{ field.name }}: {{ 'Optional[' ~ py_type ~ ']' if field.nullable else py_type }}
+    {%- endfor %}
+
+    {# relationships #}
+    {%- for rel in model_spec.relationships %}
+    {%- if rel.kind == 'one_to_many' %}
+    {{ rel.name }}: List["{{ rel.target }}Schema"] = []
+    {%- endif %}
+    {%- endfor %}
+
+{% endfor %}
+
+# Update forward references
+{%- for model_name in models.keys() %}
+{{ model_name }}Schema.model_rebuild()
+{%- endfor %}

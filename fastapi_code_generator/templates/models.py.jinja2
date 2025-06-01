@@ -1,0 +1,35 @@
+{# models.py.jinja #}
+from sqlalchemy import Column, Integer, String, Float, JSON, ForeignKey
+from sqlalchemy.orm import relationship, declarative_base
+
+Base = declarative_base()
+
+{% for model_name, model_spec in models.items() %}
+class {{ model_name }}(Base):
+    __tablename__ = "{{ model_spec.table_name or model_name.lower() }}"
+
+    {%- for field in model_spec.fields %}
+    {{ field.name }} = Column(
+        {{ field.type }}{% if field.length %}({{ field.length }}){% endif %}
+        {% if field.foreign_key %}, ForeignKey("{{ field.foreign_key.target.replace('.', '.') }}"){% endif %}
+        , primary_key={{ field.primary_key|default(False) }}
+        , nullable={{ field.nullable|default(True) }}
+    )
+    {%- endfor %}
+
+    {%- for rel in model_spec.relationships %}
+    {%- if rel.kind == 'one_to_many' %}
+    {{ rel.name }} = relationship(
+        "{{ rel.target }}",
+        back_populates="{{ rel.back_populates }}",
+        cascade="all, delete-orphan"
+    )
+    {%- elif rel.kind == 'many_to_one' %}
+    {{ rel.name }} = relationship(
+        "{{ rel.target }}",
+        back_populates="{{ rel.back_populates }}"
+    )
+    {%- endif %}
+    {%- endfor %}
+
+{% endfor %}

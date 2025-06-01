@@ -1,0 +1,47 @@
+# database.py
+import os
+from pydantic import BaseSettings
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
+from typing import AsyncGenerator
+
+class Settings(BaseSettings):
+    """
+    Application settings, loaded from environment variables or a .env file.
+    """
+    database_url: str
+    echo: bool = False
+    pool_size: int = 5
+    max_overflow: int = 10
+
+    class Config:
+        env_file = os.getenv("ENV_FILE", ".env")
+        env_file_encoding = "utf-8"
+
+# Load settings from environment
+settings = Settings()
+
+# Create the async engine using configured settings
+engine = create_async_engine(
+    settings.database_url,
+    echo=settings.echo,
+    future=True,
+    pool_size=settings.pool_size,
+    max_overflow=settings.max_overflow,
+)
+
+# Create a configured "async session" class
+AsyncSessionLocal = sessionmaker(
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
+
+# Dependency for FastAPI routes
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
+    """
+    FastAPI dependency that provides an AsyncSession
+    and ensures it's closed after use.
+    """
+    async with AsyncSessionLocal() as session:
+        yield session
